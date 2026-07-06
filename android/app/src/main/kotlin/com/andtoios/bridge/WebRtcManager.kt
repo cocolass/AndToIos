@@ -3,14 +3,12 @@ package com.andtoios.bridge
 import android.content.Context
 import android.util.Log
 import com.google.gson.JsonObject
-import io.getstream.webrtc.android.core.*
 import org.webrtc.*
 
 class WebRtcManager(
     private val context: Context,
     private val server: BridgeServer
 ) {
-
     companion object {
         const val TAG = "WebRtcManager"
     }
@@ -18,6 +16,7 @@ class WebRtcManager(
     private var peerConnectionFactory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
     private var localAudioTrack: AudioTrack? = null
+
     private val iceServers = listOf(
         PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
     )
@@ -27,21 +26,18 @@ class WebRtcManager(
     }
 
     private fun initFactory() {
-        PeerConnectionFactory.initialize(
-            PeerConnectionFactory.InitializationOptions.builder(context)
-                .setEnableInternalTracer(false)
-                .createInitializationOptions()
-        )
-
-        val options = PeerConnectionFactory.Options()
-        val audioDeviceModule = JavaAudioDeviceModule.builder(context)
-            .setUseHardwareAcousticEchoCanceler(true)
-            .setUseHardwareNoiseSuppressor(true)
-            .createAudioDeviceModule()
+        val options = PeerConnectionFactory.InitializationOptions.builder(context)
+            .setEnableInternalTracer(false)
+            .createInitializationOptions()
+        PeerConnectionFactory.initialize(options)
 
         peerConnectionFactory = PeerConnectionFactory.builder()
-            .setOptions(options)
-            .setAudioDeviceModule(audioDeviceModule)
+            .setAudioDeviceModule(
+                JavaAudioDeviceModule.builder(context)
+                    .setUseHardwareAcousticEchoCanceler(true)
+                    .setUseHardwareNoiseSuppressor(true)
+                    .createAudioDeviceModule()
+            )
             .createPeerConnectionFactory()
 
         Log.i(TAG, "PeerConnectionFactory hazır")
@@ -61,9 +57,8 @@ class WebRtcManager(
                     addProperty("candidate", candidate.sdp)
                 })
             }
-
             override fun onConnectionChange(state: PeerConnection.PeerConnectionState) {
-                Log.i(TAG, "Bağlantı durumu: $state")
+                Log.i(TAG, "Bağlantı: $state")
                 when (state) {
                     PeerConnection.PeerConnectionState.CONNECTED ->
                         BridgeService.instance?.updateNotification("Ses bağlantısı kuruldu ✓")
@@ -73,29 +68,24 @@ class WebRtcManager(
                     else -> {}
                 }
             }
-
+            override fun onSignalingChange(state: PeerConnection.SignalingState?) {}
+            override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {}
+            override fun onIceConnectionReceivingChange(p0: Boolean) {}
+            override fun onIceGatheringChange(state: PeerConnection.IceGatheringState?) {}
+            override fun onIceCandidatesRemoved(p0: Array<out IceCandidate>?) {}
             override fun onAddStream(stream: MediaStream?) {}
             override fun onRemoveStream(stream: MediaStream?) {}
             override fun onDataChannel(channel: DataChannel?) {}
             override fun onRenegotiationNeeded() {}
-            override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {}
-            override fun onIceConnectionReceivingChange(p0: Boolean) {}
-            override fun onIceCandidatesRemoved(p0: Array<out IceCandidate>?) {}
-            override fun onIceGatheringChange(state: PeerConnection.IceGatheringState?) {}
-            override fun onSignalingChange(state: PeerConnection.SignalingState?) {}
-            override fun onTrack(transceiver: RtpTransceiver?) {
-                Log.i(TAG, "Uzak ses track alındı")
-            }
+            override fun onTrack(transceiver: RtpTransceiver?) {}
         })
     }
 
     fun createOffer(callback: (String) -> Unit) {
         peerConnection?.close()
-
         val pc = createPeerConnection() ?: return
         peerConnection = pc
 
-        // Ses track ekle
         val audioSource = peerConnectionFactory?.createAudioSource(MediaConstraints())
         localAudioTrack = peerConnectionFactory?.createAudioTrack("audio0", audioSource)
         pc.addTrack(localAudioTrack, listOf("stream0"))
@@ -109,35 +99,35 @@ class WebRtcManager(
             override fun onCreateSuccess(sdp: SessionDescription) {
                 pc.setLocalDescription(object : SdpObserver {
                     override fun onSetSuccess() { callback(sdp.description) }
-                    override fun onSetFailure(error: String?) = Log.e(TAG, "SetLocal hatası: $error")
+                    override fun onSetFailure(error: String?) { Log.e(TAG, "SetLocal hatası: $error") }
                     override fun onCreateSuccess(p0: SessionDescription?) {}
                     override fun onCreateFailure(p0: String?) {}
                 }, sdp)
             }
-            override fun onCreateFailure(error: String?) = Log.e(TAG, "Offer hatası: $error")
+            override fun onCreateFailure(error: String?) { Log.e(TAG, "Offer hatası: $error") }
             override fun onSetSuccess() {}
-            override fun onSetFailure(p0: String?) {}
+            override fun onSetFailure(error: String?) {}
         }, constraints)
     }
 
     fun handleAnswer(data: JsonObject) {
         val sdp = data.get("sdp")?.asString ?: return
-        val answer = SessionDescription(SessionDescription.Type.ANSWER, sdp)
         peerConnection?.setRemoteDescription(object : SdpObserver {
-            override fun onSetSuccess() = Log.i(TAG, "Remote answer set edildi")
-            override fun onSetFailure(error: String?) = Log.e(TAG, "SetRemote hatası: $error")
+            override fun onSetSuccess() { Log.i(TAG, "Remote answer set edildi") }
+            override fun onSetFailure(error: String?) { Log.e(TAG, "SetRemote hatası: $error") }
             override fun onCreateSuccess(p0: SessionDescription?) {}
             override fun onCreateFailure(p0: String?) {}
-        }, answer)
+        }, SessionDescription(SessionDescription.Type.ANSWER, sdp))
     }
 
     fun handleIceCandidate(data: JsonObject) {
-        val candidate = IceCandidate(
-            data.get("sdpMid")?.asString ?: "",
-            data.get("sdpMLineIndex")?.asInt ?: 0,
-            data.get("candidate")?.asString ?: ""
+        peerConnection?.addIceCandidate(
+            IceCandidate(
+                data.get("sdpMid")?.asString ?: "",
+                data.get("sdpMLineIndex")?.asInt ?: 0,
+                data.get("candidate")?.asString ?: ""
+            )
         )
-        peerConnection?.addIceCandidate(candidate)
     }
 
     fun endCall() {
