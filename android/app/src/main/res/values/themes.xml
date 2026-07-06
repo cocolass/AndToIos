@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.AndToIos" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#4fc3f7</item>
+        <item name="colorPrimaryVariant">#0288d1</item>
+        <item name="colorOnPrimary">#000000</item>
+        <item name="android:windowBackground">#0f0f1a</item>
+    </style>
+</resources>

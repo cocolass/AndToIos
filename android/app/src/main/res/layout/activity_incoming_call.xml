@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:gravity="center"
+    android:background="#0f0f1a" android:padding="32dp">
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="Gelen Arama" android:textColor="#aaaaaa" android:textSize="16sp"
+        android:layout_marginBottom="16dp"/>
+    <TextView android:id="@+id/tvCaller" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="..." android:textColor="#ffffff" android:textSize="36sp"
+        android:textStyle="bold" android:layout_marginBottom="64dp"/>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <Button android:id="@+id/btnReject" android:layout_width="0dp" android:layout_height="56dp"
+            android:layout_weight="1" android:text="Reddet" android:backgroundTint="#e74c3c"
+            android:layout_marginEnd="12dp"/>
+        <Button android:id="@+id/btnAnswer" android:layout_width="0dp" android:layout_height="56dp"
+            android:layout_weight="1" android:text="Cevapla" android:backgroundTint="#2ecc71"/>
+    </LinearLayout>
+</LinearLayout>
