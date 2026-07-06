@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.google.gson.JsonObject
 import org.webrtc.*
+import org.webrtc.audio.JavaAudioDeviceModule
 
 class WebRtcManager(
     private val context: Context,
@@ -31,13 +32,13 @@ class WebRtcManager(
             .createInitializationOptions()
         PeerConnectionFactory.initialize(options)
 
+        val audioDeviceModule = JavaAudioDeviceModule.builder(context)
+            .setUseHardwareAcousticEchoCanceler(true)
+            .setUseHardwareNoiseSuppressor(true)
+            .createAudioDeviceModule()
+
         peerConnectionFactory = PeerConnectionFactory.builder()
-            .setAudioDeviceModule(
-                JavaAudioDeviceModule.builder(context)
-                    .setUseHardwareAcousticEchoCanceler(true)
-                    .setUseHardwareNoiseSuppressor(true)
-                    .createAudioDeviceModule()
-            )
+            .setAudioDeviceModule(audioDeviceModule)
             .createPeerConnectionFactory()
 
         Log.i(TAG, "PeerConnectionFactory hazır")
