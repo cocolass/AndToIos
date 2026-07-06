@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.*
 import android.provider.Settings
+import android.provider.Telephony
 import android.telecom.*
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
@@ -59,17 +60,14 @@ class MainActivity : AppCompatActivity() {
         tvIp.text = "Bu cihazın IP'si: ${BridgeService.instance?.getLocalIp() ?: "Servis kapalı"}"
     }
 
-    // Uyumluluk kontrolleri
     private fun runCompatibilityChecks() {
         val sb = StringBuilder()
         var hasWarning = false
 
-        // Android sürümü
         val sdk = Build.VERSION.SDK_INT
         if (sdk >= 26) sb.append("✅ Android ${Build.VERSION.RELEASE}\n")
         else { sb.append("⚠️ Android ${Build.VERSION.RELEASE} — Android 8+ önerilir\n"); hasWarning = true }
 
-        // Üretici uyarısı
         val manufacturer = Build.MANUFACTURER.lowercase()
         when {
             manufacturer.contains("xiaomi") || manufacturer.contains("redmi") ->
@@ -81,34 +79,30 @@ class MainActivity : AppCompatActivity() {
             else -> sb.append("✅ ${Build.MANUFACTURER} ${Build.MODEL}\n")
         }
 
-        // Pil optimizasyonu
         val pm = getSystemService(PowerManager::class.java)
         if (pm.isIgnoringBatteryOptimizations(packageName))
             sb.append("✅ Pil optimizasyonu — Muaf\n")
         else {
-            sb.append("⚠️ Pil optimizasyonu — Devre dışı bırakın  [Düzelt]\n")
+            sb.append("⚠️ Pil optimizasyonu — Devre dışı bırakın\n")
             hasWarning = true
         }
 
-        // Varsayılan telefon uygulaması
         val tm = getSystemService(TelecomManager::class.java)
         if (tm.defaultDialerPackage == packageName)
             sb.append("✅ Varsayılan telefon uygulaması\n")
         else {
-            sb.append("⚠️ Varsayılan telefon uygulaması değil  [Düzelt]\n")
+            sb.append("⚠️ Varsayılan telefon uygulaması değil\n")
             hasWarning = true
         }
 
-        // Varsayılan SMS uygulaması
         val defaultSms = Telephony.Sms.getDefaultSmsPackage(this)
         if (defaultSms == packageName)
             sb.append("✅ Varsayılan SMS uygulaması\n")
         else {
-            sb.append("⚠️ Varsayılan SMS uygulaması değil  [Düzelt]\n")
+            sb.append("⚠️ Varsayılan SMS uygulaması değil\n")
             hasWarning = true
         }
 
-        // İzinler
         val missingPerms = permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
@@ -120,7 +114,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startSetup() {
-        // 1. İzinler
         val missing = permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
@@ -129,7 +122,6 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // 2. Pil optimizasyonu
         val pm = getSystemService(PowerManager::class.java)
         if (!pm.isIgnoringBatteryOptimizations(packageName)) {
             AlertDialog.Builder(this)
@@ -145,7 +137,6 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // 3. Varsayılan telefon uygulaması
         val tm = getSystemService(TelecomManager::class.java)
         if (tm.defaultDialerPackage != packageName) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -160,23 +151,19 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // 4. Varsayılan SMS uygulaması
         val defaultSms = Telephony.Sms.getDefaultSmsPackage(this)
         if (defaultSms != packageName) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val rm = getSystemService(RoleManager::class.java)
                 startActivityForResult(rm.createRequestRoleIntent(RoleManager.ROLE_SMS), 102)
             } else {
-                startActivityForResult(
-                    Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT).apply {
-                        putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, packageName)
-                    }, 102
-                )
+                val intent = Intent("android.provider.Telephony.ACTION_CHANGE_DEFAULT")
+                intent.putExtra("package", packageName)
+                startActivityForResult(intent, 102)
             }
             return
         }
 
-        // Hepsi tamam, başlat
         startBridge()
     }
 
@@ -209,7 +196,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        // Her adımdan sonra setup'a devam et
         if (requestCode in 101..102) startSetup()
     }
 
