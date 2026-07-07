@@ -1,13 +1,11 @@
 package com.andtoios.bridge
 
 import android.Manifest
-import android.app.role.RoleManager
 import android.content.*
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.*
 import android.provider.Settings
-import android.provider.Telephony
 import android.telecom.*
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,6 +21,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnToggle: Button
     private var isRunning = false
 
+    // Dinamik tehlikeli izin listesi (SMS izinleri burada normal izin olarak isteniyor)
     private val permissions: Array<String>
         get() {
             val baseList = mutableListOf(
@@ -57,10 +56,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val dialerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        checkAndRequestDefaultSms()
-    }
-
-    private val smsLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         runCompatibilityChecks()
         Toast.makeText(this, "Kurulum başarıyla tamamlandı!", Toast.LENGTH_SHORT).show()
     }
@@ -128,48 +123,7 @@ class MainActivity : AppCompatActivity() {
             }
             dialerLauncher.launch(intent)
         } else {
-            checkAndRequestDefaultSms()
-        }
-    }
-
-    // DÜZELTİLEN KRİTİK ALAN: Son kullanıcıyı uğraştırmadan pencereyi fırlatan güvenli kod
-    private fun checkAndRequestDefaultSms() {
-        val defaultSms = Telephony.Sms.getDefaultSmsPackage(this)
-        if (defaultSms != packageName) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // Android 10 ve üzeri için RoleManager kontrolü güvenli hale getirildi
-                val rm = getSystemService(Context.ROLE_SERVICE) as? RoleManager
-                if (rm != null && rm.isRoleAvailable(RoleManager.ROLE_SMS)) {
-                    if (!rm.isRoleHeld(RoleManager.ROLE_SMS)) {
-                        val intent = rm.createRequestRoleIntent(RoleManager.ROLE_SMS)
-                        smsLauncher.launch(intent)
-                    } else {
-                        runCompatibilityChecks()
-                    }
-                } else {
-                    fallbackSmsIntent()
-                }
-            } else {
-                fallbackSmsIntent()
-            }
-        } else {
             runCompatibilityChecks()
-        }
-    }
-
-    // RoleManager'ın çalışmadığı durumlarda veya eski sürümlerde sistemi zorlayan yedek tetikleyici
-    private fun fallbackSmsIntent() {
-        try {
-            val intent = Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT).apply {
-                putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, packageName)
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            smsLauncher.launch(intent)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            // Eğer doğrudan diyalog penceresi açılamazsa kullanıcıyı doğrudan SMS ayarlarına götür
-            val intent = Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)
-            smsLauncher.launch(intent)
         }
     }
 
@@ -208,11 +162,12 @@ class MainActivity : AppCompatActivity() {
             hasWarning = true
         }
 
-        val defaultSms = Telephony.Sms.getDefaultSmsPackage(this)
-        if (defaultSms == packageName) {
-            sb.append("✅ Varsayılan SMS uygulaması\n")
+        // SMS KONTROLÜ DEĞİŞTİRİLDİ: Artık varsayılan paket kontrolü yerine sadece izin kontrolü yapılıyor
+        val hasSmsPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
+        if (hasSmsPermission) {
+            sb.append("✅ SMS Okuma ve Yakalama İzni Aktif\n")
         } else {
-            sb.append("⚠️ Varsayılan SMS uygulaması seçilmedi\n")
+            sb.append("⚠️ SMS İzni Eksik\n")
             hasWarning = true
         }
 
