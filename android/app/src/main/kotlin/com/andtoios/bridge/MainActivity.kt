@@ -23,7 +23,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnToggle: Button
     private var isRunning = false
 
-    // Android sürümlerine göre dinamik tehlikeli izin listesi
     private val permissions: Array<String>
         get() {
             val baseList = mutableListOf(
@@ -44,7 +43,6 @@ class MainActivity : AppCompatActivity() {
             return baseList.toTypedArray()
         }
 
-    // Zincirleme otomasyon izin süreçleri için modern Result API kontratları
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { perms ->
         val allGranted = perms.values.all { it }
         if (allGranted) {
@@ -82,15 +80,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         runCompatibilityChecks()
-        
-        // Uygulama açılışında doğrusal zinciri otomatik tetikle
         startAutomaticSetupChain()
     }
 
     override fun onResume() {
         super.onResume()
         runCompatibilityChecks()
-        // Servis ayaktaysa dinamik IP bilgisini arayüze bas
         tvIp.text = "Cihaz IP: ${BridgeService.instance?.getLocalIp() ?: "Servis pasif"}"
     }
 
@@ -137,23 +132,44 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // DÜZELTİLEN KRİTİK ALAN: Son kullanıcıyı uğraştırmadan pencereyi fırlatan güvenli kod
     private fun checkAndRequestDefaultSms() {
         val defaultSms = Telephony.Sms.getDefaultSmsPackage(this)
         if (defaultSms != packageName) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val rm = getSystemService(RoleManager::class.java)
-                if (rm != null && rm.isRoleAvailable(RoleManager.ROLE_SMS) && !rm.isRoleHeld(RoleManager.ROLE_SMS)) {
-                    val intent = rm.createRequestRoleIntent(RoleManager.ROLE_SMS)
-                    smsLauncher.launch(intent)
+                // Android 10 ve üzeri için RoleManager kontrolü güvenli hale getirildi
+                val rm = getSystemService(Context.ROLE_SERVICE) as? RoleManager
+                if (rm != null && rm.isRoleAvailable(RoleManager.ROLE_SMS)) {
+                    if (!rm.isRoleHeld(RoleManager.ROLE_SMS)) {
+                        val intent = rm.createRequestRoleIntent(RoleManager.ROLE_SMS)
+                        smsLauncher.launch(intent)
+                    } else {
+                        runCompatibilityChecks()
+                    }
+                } else {
+                    fallbackSmsIntent()
                 }
             } else {
-                val intent = Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT).apply {
-                    putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, packageName)
-                }
-                smsLauncher.launch(intent)
+                fallbackSmsIntent()
             }
         } else {
             runCompatibilityChecks()
+        }
+    }
+
+    // RoleManager'ın çalışmadığı durumlarda veya eski sürümlerde sistemi zorlayan yedek tetikleyici
+    private fun fallbackSmsIntent() {
+        try {
+            val intent = Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT).apply {
+                putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, packageName)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            smsLauncher.launch(intent)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Eğer doğrudan diyalog penceresi açılamazsa kullanıcıyı doğrudan SMS ayarlarına götür
+            val intent = Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)
+            smsLauncher.launch(intent)
         }
     }
 
