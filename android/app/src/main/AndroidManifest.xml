@@ -1,40 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Telefon -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.CALL_PHONE" />
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
     <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
     <uses-permission android:name="android.permission.READ_CALL_LOG" />
     <uses-permission android:name="android.permission.PROCESS_OUTGOING_CALLS" />
-
-    <!-- SMS -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.SEND_SMS" />
-
-    <!-- Ses -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-
-    <!-- Ağ -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
-
-    <!-- Arka plan -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-    <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-    <!-- Kişiler -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
 
     <application
@@ -52,7 +39,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Varsayılan telefon uygulaması için -->
+        <!-- Varsayılan telefon uygulaması için zorunlu -->
         <activity
             android:name=".DialerActivity"
             android:exported="true">
@@ -66,9 +53,15 @@
                 <action android:name="android.intent.action.DIAL" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="tel" />
+            </intent-filter>
         </activity>
 
-        <!-- Varsayılan SMS uygulaması için -->
+        <!-- Varsayılan SMS uygulaması için zorunlu -->
         <activity
             android:name=".SmsActivity"
             android:exported="true">
@@ -78,13 +71,37 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="sms" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SENDTO" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="smsto" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SENDTO" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="mms" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SENDTO" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="mmsto" />
             </intent-filter>
+<intent-filter>
+    <action android:name="android.intent.action.RESPOND_VIA_MESSAGE" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <data android:scheme="sms" />
+    <data android:scheme="smsto" />
+    <data android:scheme="mms" />
+    <data android:scheme="mmsto" />
+</intent-filter>
         </activity>
-
-        <!-- Gelen arama ekranı -->
         <activity
             android:name=".IncomingCallActivity"
             android:exported="false"
@@ -92,7 +109,6 @@
             android:turnScreenOn="true"
             android:launchMode="singleTask" />
 
-        <!-- TelecomManager ConnectionService -->
         <service
             android:name=".GsmConnectionService"
             android:exported="true"
@@ -102,13 +118,11 @@
             </intent-filter>
         </service>
 
-        <!-- Ana bridge servisi -->
         <service
             android:name=".BridgeService"
             android:exported="false"
             android:foregroundServiceType="phoneCall" />
 
-        <!-- SMS alıcı -->
         <receiver
             android:name=".SmsReceiver"
             android:exported="true"
@@ -117,8 +131,17 @@
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
         </receiver>
-
-        <!-- Boot receiver -->
+        <receiver
+    android:name=".SmsReceiver"
+    android:exported="true">
+    <intent-filter>
+        <action android:name="android.provider.Telephony.SMS_DELIVER" />
+    </intent-filter>
+    <intent-filter>
+        <action android:name="android.provider.Telephony.WAP_PUSH_DELIVER" />
+        <data android:mimeType="application/vnd.wap.mms-message" />
+    </intent-filter>
+</receiver>
         <receiver
             android:name=".BootReceiver"
             android:exported="true">
