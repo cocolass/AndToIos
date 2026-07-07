@@ -23,7 +23,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnToggle: Button
     private var isRunning = false
 
-    // Dinamik izin listesi (Android sürüm kontrolü ile)
+    // Android sürümlerine göre dinamik tehlikeli izin listesi
     private val permissions: Array<String>
         get() {
             val baseList = mutableListOf(
@@ -44,13 +44,13 @@ class MainActivity : AppCompatActivity() {
             return baseList.toTypedArray()
         }
 
-    // Zincirleme açılış izin istekleri için Activity Sonuç Takipçileri
+    // Zincirleme otomasyon izin süreçleri için modern Result API kontratları
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { perms ->
         val allGranted = perms.values.all { it }
         if (allGranted) {
             checkAndRequestBatteryOptimization()
         } else {
-            Toast.makeText(this, "Uygulamanın çalışması için temel izinleri vermelisiniz.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Köprünün çalışması için temel izinleri onaylamalısınız.", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -64,7 +64,7 @@ class MainActivity : AppCompatActivity() {
 
     private val smsLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         runCompatibilityChecks()
-        Toast.makeText(this, "Tüm kurulum başarıyla tamamlandı!", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Kurulum başarıyla tamamlandı!", Toast.LENGTH_SHORT).show()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -82,12 +82,16 @@ class MainActivity : AppCompatActivity() {
         }
 
         runCompatibilityChecks()
+        
+        // Uygulama açılışında doğrusal zinciri otomatik tetikle
         startAutomaticSetupChain()
     }
 
     override fun onResume() {
         super.onResume()
         runCompatibilityChecks()
+        // Servis ayaktaysa dinamik IP bilgisini arayüze bas
+        tvIp.text = "Cihaz IP: ${BridgeService.instance?.getLocalIp() ?: "Servis pasif"}"
     }
 
     private fun startAutomaticSetupChain() {
@@ -103,10 +107,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkAndRequestBatteryOptimization() {
         val pm = getSystemService(PowerManager::class.java)
-        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+        if (pm != null && !pm.isIgnoringBatteryOptimizations(packageName)) {
             AlertDialog.Builder(this)
-                .setTitle("Pil Optimizasyonu")
-                .setMessage("AndToIos'un arka planda sorunsuz çalışabilmesi için pil optimizasyonundan muaf tutulması gerekiyor.")
+                .setTitle("Pil Muafiyeti")
+                .setMessage("AndToIos sisteminin arka planda kesintisiz veri aktarabilmesi için pil optimizasyonundan çıkarılması gerekir.")
                 .setCancelable(false)
                 .setPositiveButton("Ayarları Aç") { _, _ ->
                     val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
@@ -123,7 +127,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkAndRequestDefaultDialer() {
         val tm = getSystemService(TelecomManager::class.java)
-        if (tm.defaultDialerPackage != packageName) {
+        if (tm != null && tm.defaultDialerPackage != packageName) {
             val intent = Intent(TelecomManager.ACTION_CHANGE_DEFAULT_DIALER).apply {
                 putExtra(TelecomManager.EXTRA_CHANGE_DEFAULT_DIALER_PACKAGE_NAME, packageName)
             }
@@ -166,9 +170,9 @@ class MainActivity : AppCompatActivity() {
             manufacturer.contains("xiaomi") || manufacturer.contains("redmi") ->
                 sb.append("⚠️ Xiaomi — MIUI arka plan kısıtlamalarını kapatın\n").also { hasWarning = true }
             manufacturer.contains("huawei") ->
-                sb.append("⚠️ Huawei — Pil yönetimi kısıtlamalarını kapatın\n").also { hasWarning = true }
+                sb.append("⚠️ Huawei — Pil kısıtlamalarını elinizle kapatın\n").also { hasWarning = true }
             manufacturer.contains("oppo") || manufacturer.contains("vivo") ->
-                sb.append("⚠️ ${Build.MANUFACTURER} — Arka plan izinlerini kontrol edin\n").also { hasWarning = true }
+                sb.append("⚠️ ${Build.MANUFACTURER} — Arka plan izinlerini denetleyin\n").also { hasWarning = true }
             else -> sb.append("✅ ${Build.MANUFACTURER} ${Build.MODEL}\n")
         }
 
@@ -176,7 +180,7 @@ class MainActivity : AppCompatActivity() {
         if (pm != null && pm.isIgnoringBatteryOptimizations(packageName)) {
             sb.append("✅ Pil optimizasyonu — Muaf\n")
         } else {
-            sb.append("⚠️ Pil optimizasyonu — Devre dışı bırakın\n")
+            sb.append("⚠️ Pil optimizasyonu — Muafiyet eksik\n")
             hasWarning = true
         }
 
@@ -184,7 +188,7 @@ class MainActivity : AppCompatActivity() {
         if (tm != null && tm.defaultDialerPackage == packageName) {
             sb.append("✅ Varsayılan telefon uygulaması\n")
         } else {
-            sb.append("⚠️ Varsayılan telefon uygulaması değil\n")
+            sb.append("⚠️ Varsayılan telefon uygulaması seçilmedi\n")
             hasWarning = true
         }
 
@@ -192,19 +196,19 @@ class MainActivity : AppCompatActivity() {
         if (defaultSms == packageName) {
             sb.append("✅ Varsayılan SMS uygulaması\n")
         } else {
-            sb.append("⚠️ Varsayılan SMS uygulaması değil\n")
+            sb.append("⚠️ Varsayılan SMS uygulaması seçilmedi\n")
             hasWarning = true
         }
 
         val missingPerms = permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
-        if (missingPerms.isEmpty()) sb.append("✅ Tüm izinler verilmiş\n")
-        else { sb.append("⚠️ Eksik izinler: ${missingPerms.size} adet\n"); hasWarning = true }
+        if (missingPerms.isEmpty()) sb.append("✅ Tüm çalışma izinleri tamam\n")
+        else { sb.append("⚠️ Eksik izinler var (${missingPerms.size} adet)\n"); hasWarning = true }
 
         tvChecks.text = sb.toString()
         if (!hasWarning) {
-            tvChecks.append("\n🎉 Tüm kontroller geçti!")
+            tvChecks.append("\n🎉 Tüm sistem entegrasyonu doğrulandı!")
             if (!isRunning) startBridge()
         }
     }
@@ -215,16 +219,24 @@ class MainActivity : AppCompatActivity() {
 
     private fun startBridge() {
         isRunning = true
-        tvStatus.text = "Durum: Çalışıyor"
+        tvStatus.text = "Durum: Köprü Aktif"
         btnToggle.text = "Köprüyü Durdur"
-        // Burada BridgeService'i başlatacak Intent çağrısını yapabilirsin:
-        // startService(Intent(this, BridgeService::class.java))
+        try {
+            val serviceIntent = Intent(this, BridgeService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     private fun stopBridge() {
         isRunning = false
-        tvStatus.text = "Durum: Durduruldu"
+        tvStatus.text = "Durum: Pasif"
         btnToggle.text = "Köprüyü Başlat"
-        // stopService(Intent(this, BridgeService::class.java))
+        stopService(Intent(this, BridgeService::class.java))
     }
 }
