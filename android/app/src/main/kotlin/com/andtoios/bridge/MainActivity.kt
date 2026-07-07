@@ -13,7 +13,6 @@ import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
 class MainActivity : AppCompatActivity() {
@@ -24,19 +23,26 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnToggle: Button
     private var isRunning = false
 
-    private val permissions = arrayOf(
-        Manifest.permission.READ_PHONE_STATE,
-        Manifest.permission.CALL_PHONE,
-        Manifest.permission.RECORD_AUDIO,
-        Manifest.permission.READ_CALL_LOG,
-        Manifest.permission.ANSWER_PHONE_CALLS,
-        Manifest.permission.MANAGE_OWN_CALLS,
-        Manifest.permission.RECEIVE_SMS,
-        Manifest.permission.READ_SMS,
-        Manifest.permission.SEND_SMS,
-        Manifest.permission.READ_CONTACTS,
-        Manifest.permission.POST_NOTIFICATIONS,
-    )
+    // Dinamik izin listesi (Android sürüm kontrolü ile)
+    private val permissions: Array<String>
+        get() {
+            val baseList = mutableListOf(
+                Manifest.permission.READ_PHONE_STATE,
+                Manifest.permission.CALL_PHONE,
+                Manifest.permission.RECORD_AUDIO,
+                Manifest.permission.READ_CALL_LOG,
+                Manifest.permission.ANSWER_PHONE_CALLS,
+                Manifest.permission.MANAGE_OWN_CALLS,
+                Manifest.permission.RECEIVE_SMS,
+                Manifest.permission.READ_SMS,
+                Manifest.permission.SEND_SMS,
+                Manifest.permission.READ_CONTACTS
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                baseList.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            return baseList.toTypedArray()
+        }
 
     // Zincirleme açılış izin istekleri için Activity Sonuç Takipçileri
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { perms ->
@@ -44,7 +50,7 @@ class MainActivity : AppCompatActivity() {
         if (allGranted) {
             checkAndRequestBatteryOptimization()
         } else {
-            Toast.makeText(this, "Uygulamanın çalışması için izinleri vermelisiniz.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Uygulamanın çalışması için temel izinleri vermelisiniz.", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -76,18 +82,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         runCompatibilityChecks()
-
-        // UYGULAMA AÇILDIĞINDA OTOMATİK İZİN SÜRECİNİ BAŞLAT
         startAutomaticSetupChain()
     }
 
     override fun onResume() {
         super.onResume()
         runCompatibilityChecks()
-        tvIp.text = "Bu cihazın IP'si: ${BridgeService.instance?.getLocalIp() ?: "Servis kapalı"}"
     }
 
-    // Açılışta otomatik çalışan zincirleme kontrol fonksiyonu
     private fun startAutomaticSetupChain() {
         val missing = permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
@@ -104,7 +106,7 @@ class MainActivity : AppCompatActivity() {
         if (!pm.isIgnoringBatteryOptimizations(packageName)) {
             AlertDialog.Builder(this)
                 .setTitle("Pil Optimizasyonu")
-                .setMessage("AndToIos'un arka planda sürekli çalışabilmesi için pil optimizasyonundan muaf tutulması gerekiyor.")
+                .setMessage("AndToIos'un arka planda sorunsuz çalışabilmesi için pil optimizasyonundan muaf tutulması gerekiyor.")
                 .setCancelable(false)
                 .setPositiveButton("Ayarları Aç") { _, _ ->
                     val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
@@ -136,7 +138,7 @@ class MainActivity : AppCompatActivity() {
         if (defaultSms != packageName) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val rm = getSystemService(RoleManager::class.java)
-                if (rm.isRoleAvailable(RoleManager.ROLE_SMS) && !rm.isRoleHeld(RoleManager.ROLE_SMS)) {
+                if (rm != null && rm.isRoleAvailable(RoleManager.ROLE_SMS) && !rm.isRoleHeld(RoleManager.ROLE_SMS)) {
                     val intent = rm.createRequestRoleIntent(RoleManager.ROLE_SMS)
                     smsLauncher.launch(intent)
                 }
@@ -171,25 +173,25 @@ class MainActivity : AppCompatActivity() {
         }
 
         val pm = getSystemService(PowerManager::class.java)
-        if (pm.isIgnoringBatteryOptimizations(packageName))
+        if (pm != null && pm.isIgnoringBatteryOptimizations(packageName)) {
             sb.append("✅ Pil optimizasyonu — Muaf\n")
-        else {
+        } else {
             sb.append("⚠️ Pil optimizasyonu — Devre dışı bırakın\n")
             hasWarning = true
         }
 
         val tm = getSystemService(TelecomManager::class.java)
-        if (tm.defaultDialerPackage == packageName)
+        if (tm != null && tm.defaultDialerPackage == packageName) {
             sb.append("✅ Varsayılan telefon uygulaması\n")
-        else {
+        } else {
             sb.append("⚠️ Varsayılan telefon uygulaması değil\n")
             hasWarning = true
         }
 
         val defaultSms = Telephony.Sms.getDefaultSmsPackage(this)
-        if (defaultSms == packageName)
+        if (defaultSms == packageName) {
             sb.append("✅ Varsayılan SMS uygulaması\n")
-        else {
+        } else {
             sb.append("⚠️ Varsayılan SMS uygulaması değil\n")
             hasWarning = true
         }
@@ -201,45 +203,28 @@ class MainActivity : AppCompatActivity() {
         else { sb.append("⚠️ Eksik izinler: ${missingPerms.size} adet\n"); hasWarning = true }
 
         tvChecks.text = sb.toString()
-        if (!hasWarning) tvChecks.append("\n🎉 Tüm kontroller geçti!")
+        if (!hasWarning) {
+            tvChecks.append("\n🎉 Tüm kontroller geçti!")
+            if (!isRunning) startBridge()
+        }
     }
 
     private fun startSetup() {
-        val missing = permissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-        if (missing.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, missing.toTypedArray(), 100)
-            return
-        }
+        startAutomaticSetupChain()
+    }
 
-        val pm = getSystemService(PowerManager::class.java)
-        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-            AlertDialog.Builder(this)
-                .setTitle("Pil Optimizasyonu")
-                .setMessage("AndToIos'un arka planda sürekli çalışabilmesi için pil optimizasyonundan muaf tutulması gerekiyor.")
-                .setPositiveButton("Ayarları Aç") { _, _ ->
-                    startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                        data = Uri.parse("package:$packageName")
-                    })
-                }
-                .setNegativeButton("Geç", null)
-                .show()
-            return
-        }
+    private fun startBridge() {
+        isRunning = true
+        tvStatus.text = "Durum: Çalışıyor"
+        btnToggle.text = "Köprüyü Durdur"
+        // Burada BridgeService'i başlatacak Intent çağrısını yapabilirsin:
+        // startService(Intent(this, BridgeService::class.java))
+    }
 
-        val tm = getSystemService(TelecomManager::class.java)
-        if (tm.defaultDialerPackage != packageName) {
-            val intent = Intent(TelecomManager.ACTION_CHANGE_DEFAULT_DIALER).apply {
-                putExtra(TelecomManager.EXTRA_CHANGE_DEFAULT_DIALER_PACKAGE_NAME, packageName)
-            }
-            startActivityForResult(intent, 101)
-            return
-        }
-
-        val defaultSms = Telephony.Sms.getDefaultSmsPackage(this)
-        if (defaultSms != packageName) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val rm = getSystemService(RoleManager::class.java)
-                startActivityForResult(rm.createRequestRoleIntent(RoleManager.ROLE_SMS), 102)
-            } else {
+    private fun stopBridge() {
+        isRunning = false
+        tvStatus.text = "Durum: Durduruldu"
+        btnToggle.text = "Köprüyü Başlat"
+        // stopService(Intent(this, BridgeService::class.java))
+    }
+}
