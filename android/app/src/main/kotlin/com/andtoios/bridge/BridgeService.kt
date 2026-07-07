@@ -3,11 +3,13 @@ package com.andtoios.bridge
 import android.app.*
 import android.content.Context
 import android.content.Intent
-import android.net.wifi.WifiManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.gson.JsonObject
+import java.net.NetworkInterface
 
 class BridgeService : Service() {
 
@@ -44,17 +46,15 @@ class BridgeService : Service() {
         }
 
         server.start()
-        updateNotification("Hazır — iPhone bağlantısı bekleniyor\nIP: ${getLocalIp()}")
-        Log.i(TAG, "Bridge servisi başlatıldı, IP: ${getLocalIp()}")
+        val ip = getLocalIp()
+        updateNotification("Hazır — iPhone bağlantısı bekleniyor\nIP: $ip")
+        Log.i(TAG, "Bridge servisi başlatıldı, IP: $ip")
     }
 
     private fun handleMessage(type: String, data: JsonObject) {
         when (type) {
-            // WebRTC sinyalizasyonu
             "webrtc_answer" -> webRtcManager.handleAnswer(data)
             "webrtc_ice"    -> webRtcManager.handleIceCandidate(data)
-
-            // Arama kontrolü
             "call_answer"   -> GsmConnectionService.answerActiveCall()
             "call_reject"   -> GsmConnectionService.rejectActiveCall()
             "call_end"      -> GsmConnectionService.endActiveCall()
@@ -62,19 +62,15 @@ class BridgeService : Service() {
                 val number = data.get("number")?.asString ?: return
                 GsmConnectionService.makeOutgoingCall(this, number)
             }
-
-            // SMS gönderme (iPhone'dan istek geldi)
             "sms_send" -> {
                 val to   = data.get("to")?.asString ?: return
                 val body = data.get("body")?.asString ?: return
                 SmsManager.sendSms(this, to, body)
             }
-
             else -> Log.w(TAG, "Bilinmeyen mesaj tipi: $type")
         }
     }
 
-    // Gelen GSM aramasını iPhone'a bildir
     fun notifyIncomingCall(caller: String) {
         webRtcManager.createOffer { offer ->
             server.send("call_incoming", JsonObject().apply {
@@ -85,7 +81,6 @@ class BridgeService : Service() {
         updateNotification("Gelen arama: $caller")
     }
 
-    // Gelen SMS'i iPhone'a ilet
     fun notifyIncomingSms(sender: String, body: String, timestamp: Long) {
         server.send("sms_incoming", JsonObject().apply {
             addProperty("sender", sender)
@@ -96,10 +91,33 @@ class BridgeService : Service() {
     }
 
     fun getLocalIp(): String {
-        val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-        val ip = wm.connectionInfo.ipAddress
-        return if (ip == 0) "IP alınamadı"
-        else "${ip and 0xff}.${ip shr 8 and 0xff}.${ip shr 16 and 0xff}.${ip shr 24 and 0xff}"
+        // Önce tüm network interface'leri tara
+        try {
+            val interfaces = NetworkInterface.getNetworkInterfaces()
+            while (interfaces.hasMoreElements()) {
+                val iface = interfaces.nextElement()
+                // Hotspot interface'leri: wlan0, ap0, swlan0 gibi
+                val name = iface.name.lowercase()
+                if (!iface.isUp || iface.isLoopback) continue
+                
+                val addresses = iface.inetAddresses
+                while (addresses.hasMoreElements()) {
+                    val addr = addresses.nextElement()
+                    val ip = addr.hostAddress ?: continue
+                    // IPv4 ve loopback olmayan
+                    if (!addr.isLoopbackAddress && !ip.contains(":")) {
+                        Log.i(TAG, "Interface: $name, IP: $ip")
+                        // Hotspot IP'si genellikle 192.168.x.x veya 10.x.x.x
+                        if (ip.startsWith("192.168.") || ip.startsWith("10.")) {
+                            return ip
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "IP alma hatası: ${e.message}")
+        }
+        return "IP alınamadı"
     }
 
     fun updateNotification(text: String) {
