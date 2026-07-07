@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://android.com">
+<manifest xmlns:android="http://android.com"
+    package="com.andtoios.bridge">
 
     <!-- Arama ve Telefon İzinleri -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
@@ -14,7 +15,7 @@
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.SEND_SMS" />
     
-    <!-- Diğer İzinler -->
+    <!-- Diğer Sistem İzinleri -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -45,7 +46,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Varsayılan TELEFON için Zorunlu Activity -->
+        <!-- Varsayılan TELEFON için Zorunlu Arama Ekranı (Dialer) -->
         <activity
             android:name=".DialerActivity"
             android:exported="true">
@@ -67,7 +68,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Varsayılan SMS için Zorunlu Activity -->
+        <!-- Varsayılan SMS için Zorunlu Mesajlaşma Ekranı (SMS) -->
         <activity
             android:name=".SmsActivity"
             android:exported="true">
@@ -92,6 +93,7 @@
             </intent-filter>
         </activity>
 
+        <!-- Gelen Çağrı Arayüzü -->
         <activity
             android:name=".IncomingCallActivity"
             android:exported="false"
@@ -99,7 +101,7 @@
             android:turnScreenOn="true"
             android:launchMode="singleTask" />
 
-        <!-- Varsayılan TELEFON için Sistem Servisleri (Zorunlu) -->
+        <!-- Varsayılan TELEFON Çağrı Servisleri (Zorunlu) -->
         <service
             android:name=".CallInCallService"
             android:permission="android.permission.BIND_INCALL_SERVICE"
@@ -123,7 +125,7 @@
             android:exported="false"
             android:foregroundServiceType="phoneCall" />
 
-        <!-- Varsayılan SMS için Sistem Servisi (Zorunlu) -->
+        <!-- Varsayılan SMS Hızlı Gönderim Servisi (Zorunlu) -->
         <service
             android:name=".HeadlessSmsSendService"
             android:permission="android.permission.SEND_RESPOND_VIA_MESSAGE"
@@ -134,7 +136,7 @@
             </intent-filter>
         </service>
 
-        <!-- Varsayılan SMS için Birleştirilmiş Alıcı (Receiver) -->
+        <!-- Varsayılan SMS Mesaj Alıcısı (Receiver - Zorunlu) -->
         <receiver
             android:name=".SmsReceiver"
             android:exported="true"
@@ -151,6 +153,7 @@
             </intent-filter>
         </receiver>
 
+        <!-- Cihaz Açıldığında Otomatik Başlatma Alıcısı -->
         <receiver
             android:name=".BootReceiver"
             android:exported="true">
