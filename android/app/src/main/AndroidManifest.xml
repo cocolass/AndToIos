@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://android.com"
-    package="com.andtoios.bridge">
+    xmlns:tools="http://android.com">
 
     <!-- Arama ve Telefon İzinleri -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
@@ -70,6 +70,7 @@
 
         <!-- Varsayılan SMS için Zorunlu Mesajlaşma Ekranı (SMS) -->
         <activity
+            **tools:node="merge"**
             android:name=".SmsActivity"
             android:exported="true">
             <intent-filter>
