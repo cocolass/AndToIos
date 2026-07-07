@@ -10,6 +10,7 @@ import android.provider.Settings
 import android.provider.Telephony
 import android.telecom.*
 import android.widget.*
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -37,6 +38,29 @@ class MainActivity : AppCompatActivity() {
         Manifest.permission.POST_NOTIFICATIONS,
     )
 
+    // Zincirleme açılış izin istekleri için Activity Sonuç Takipçileri
+    private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { perms ->
+        val allGranted = perms.values.all { it }
+        if (allGranted) {
+            checkAndRequestBatteryOptimization()
+        } else {
+            Toast.makeText(this, "Uygulamanın çalışması için izinleri vermelisiniz.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private val batteryLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        checkAndRequestDefaultDialer()
+    }
+
+    private val dialerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        checkAndRequestDefaultSms()
+    }
+
+    private val smsLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        runCompatibilityChecks()
+        Toast.makeText(this, "Tüm kurulum başarıyla tamamlandı!", Toast.LENGTH_SHORT).show()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -52,12 +76,79 @@ class MainActivity : AppCompatActivity() {
         }
 
         runCompatibilityChecks()
+
+        // UYGULAMA AÇILDIĞINDA OTOMATİK İZİN SÜRECİNİ BAŞLAT
+        startAutomaticSetupChain()
     }
 
     override fun onResume() {
         super.onResume()
         runCompatibilityChecks()
         tvIp.text = "Bu cihazın IP'si: ${BridgeService.instance?.getLocalIp() ?: "Servis kapalı"}"
+    }
+
+    // Açılışta otomatik çalışan zincirleme kontrol fonksiyonu
+    private fun startAutomaticSetupChain() {
+        val missing = permissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isNotEmpty()) {
+            permissionLauncher.launch(missing.toTypedArray())
+        } else {
+            checkAndRequestBatteryOptimization()
+        }
+    }
+
+    private fun checkAndRequestBatteryOptimization() {
+        val pm = getSystemService(PowerManager::class.java)
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            AlertDialog.Builder(this)
+                .setTitle("Pil Optimizasyonu")
+                .setMessage("AndToIos'un arka planda sürekli çalışabilmesi için pil optimizasyonundan muaf tutulması gerekiyor.")
+                .setCancelable(false)
+                .setPositiveButton("Ayarları Aç") { _, _ ->
+                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+                    batteryLauncher.launch(intent)
+                }
+                .setNegativeButton("Geç") { _, _ -> checkAndRequestDefaultDialer() }
+                .show()
+        } else {
+            checkAndRequestDefaultDialer()
+        }
+    }
+
+    private fun checkAndRequestDefaultDialer() {
+        val tm = getSystemService(TelecomManager::class.java)
+        if (tm.defaultDialerPackage != packageName) {
+            val intent = Intent(TelecomManager.ACTION_CHANGE_DEFAULT_DIALER).apply {
+                putExtra(TelecomManager.EXTRA_CHANGE_DEFAULT_DIALER_PACKAGE_NAME, packageName)
+            }
+            dialerLauncher.launch(intent)
+        } else {
+            checkAndRequestDefaultSms()
+        }
+    }
+
+    private fun checkAndRequestDefaultSms() {
+        val defaultSms = Telephony.Sms.getDefaultSmsPackage(this)
+        if (defaultSms != packageName) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val rm = getSystemService(RoleManager::class.java)
+                if (rm.isRoleAvailable(RoleManager.ROLE_SMS) && !rm.isRoleHeld(RoleManager.ROLE_SMS)) {
+                    val intent = rm.createRequestRoleIntent(RoleManager.ROLE_SMS)
+                    smsLauncher.launch(intent)
+                }
+            } else {
+                val intent = Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT).apply {
+                    putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, packageName)
+                }
+                smsLauncher.launch(intent)
+            }
+        } else {
+            runCompatibilityChecks()
+        }
     }
 
     private fun runCompatibilityChecks() {
@@ -139,15 +230,10 @@ class MainActivity : AppCompatActivity() {
 
         val tm = getSystemService(TelecomManager::class.java)
         if (tm.defaultDialerPackage != packageName) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val rm = getSystemService(RoleManager::class.java)
-                startActivityForResult(rm.createRequestRoleIntent(RoleManager.ROLE_DIALER), 101)
-            } else {
-                startActivityForResult(
-                    Intent(TelecomManager.ACTION_CHANGE_DEFAULT_DIALER)
-                        .putExtra(TelecomManager.EXTRA_CHANGE_DEFAULT_DIALER_PACKAGE_NAME, packageName), 101
-                )
+            val intent = Intent(TelecomManager.ACTION_CHANGE_DEFAULT_DIALER).apply {
+                putExtra(TelecomManager.EXTRA_CHANGE_DEFAULT_DIALER_PACKAGE_NAME, packageName)
             }
+            startActivityForResult(intent, 101)
             return
         }
 
@@ -157,50 +243,3 @@ class MainActivity : AppCompatActivity() {
                 val rm = getSystemService(RoleManager::class.java)
                 startActivityForResult(rm.createRequestRoleIntent(RoleManager.ROLE_SMS), 102)
             } else {
-                val intent = Intent("android.provider.Telephony.ACTION_CHANGE_DEFAULT")
-                intent.putExtra("package", packageName)
-                startActivityForResult(intent, 102)
-            }
-            return
-        }
-
-        startBridge()
-    }
-
-    private fun startBridge() {
-        registerPhoneAccount()
-        BridgeService.start(this)
-        isRunning = true
-        btnToggle.text = "Durdur"
-        tvStatus.text = "Durum: Çalışıyor ✓"
-        runCompatibilityChecks()
-    }
-
-    private fun stopBridge() {
-        BridgeService.stop(this)
-        isRunning = false
-        btnToggle.text = "Başlat"
-        tvStatus.text = "Durum: Durduruldu"
-    }
-
-    private fun registerPhoneAccount() {
-        val tm = getSystemService(TelecomManager::class.java)
-        val handle = PhoneAccountHandle(
-            ComponentName(this, GsmConnectionService::class.java), "AndToIosBridge"
-        )
-        val account = PhoneAccount.builder(handle, "AndToIos")
-            .setCapabilities(PhoneAccount.CAPABILITY_CALL_PROVIDER)
-            .build()
-        tm.registerPhoneAccount(account)
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode in 101..102) startSetup()
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, perms: Array<out String>, results: IntArray) {
-        super.onRequestPermissionsResult(requestCode, perms, results)
-        if (requestCode == 100) startSetup()
-    }
-}
