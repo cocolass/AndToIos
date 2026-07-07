@@ -1,15 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://android.com">
 
+    <!-- Arama ve Telefon İzinleri -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.CALL_PHONE" />
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
     <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
     <uses-permission android:name="android.permission.READ_CALL_LOG" />
     <uses-permission android:name="android.permission.PROCESS_OUTGOING_CALLS" />
+    
+    <!-- SMS İzinleri -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.SEND_SMS" />
+    
+    <!-- Diğer İzinler -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -29,6 +34,7 @@
         android:label="AndToIos"
         android:theme="@style/Theme.AndToIos">
 
+        <!-- Ana Giriş Ekranı -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -39,7 +45,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Varsayılan telefon uygulaması için zorunlu -->
+        <!-- Varsayılan TELEFON için Zorunlu Activity -->
         <activity
             android:name=".DialerActivity"
             android:exported="true">
@@ -61,7 +67,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Varsayılan SMS uygulaması için zorunlu -->
+        <!-- Varsayılan SMS için Zorunlu Activity -->
         <activity
             android:name=".SmsActivity"
             android:exported="true">
@@ -93,6 +99,16 @@
             android:turnScreenOn="true"
             android:launchMode="singleTask" />
 
+        <!-- Varsayılan TELEFON için Sistem Servisleri (Zorunlu) -->
+        <service
+            android:name=".CallInCallService"
+            android:permission="android.permission.BIND_INCALL_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.telecom.InCallService" />
+            </intent-filter>
+        </service>
+
         <service
             android:name=".GsmConnectionService"
             android:exported="true"
@@ -107,7 +123,7 @@
             android:exported="false"
             android:foregroundServiceType="phoneCall" />
 
-        <!-- Hızlı mesaj gönderme servisi (Varsayılan SMS için zorunlu) -->
+        <!-- Varsayılan SMS için Sistem Servisi (Zorunlu) -->
         <service
             android:name=".HeadlessSmsSendService"
             android:permission="android.permission.SEND_RESPOND_VIA_MESSAGE"
@@ -118,7 +134,7 @@
             </intent-filter>
         </service>
 
-        <!-- Birleştirilmiş SMS Alıcısı -->
+        <!-- Varsayılan SMS için Birleştirilmiş Alıcı (Receiver) -->
         <receiver
             android:name=".SmsReceiver"
             android:exported="true"
