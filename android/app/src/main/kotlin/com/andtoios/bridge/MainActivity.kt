@@ -21,7 +21,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnToggle: Button
     private var isRunning = false
 
-    // Dinamik tehlikeli izin listesi (SMS izinleri burada normal izin olarak isteniyor)
     private val permissions: Array<String>
         get() {
             val baseList = mutableListOf(
@@ -81,7 +80,11 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         runCompatibilityChecks()
-        tvIp.text = "Cihaz IP: ${BridgeService.instance?.getLocalIp() ?: "Servis pasif"}"
+        try {
+            tvIp.text = "Cihaz IP: ${BridgeService.instance?.getLocalIp() ?: "Servis pasif"}"
+        } catch (e: Exception) {
+            tvIp.text = "Cihaz IP: Alınamadı"
+        }
     }
 
     private fun startAutomaticSetupChain() {
@@ -162,7 +165,6 @@ class MainActivity : AppCompatActivity() {
             hasWarning = true
         }
 
-        // SMS KONTROLÜ DEĞİŞTİRİLDİ: Artık varsayılan paket kontrolü yerine sadece izin kontrolü yapılıyor
         val hasSmsPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
         if (hasSmsPermission) {
             sb.append("✅ SMS Okuma ve Yakalama İzni Aktif\n")
@@ -180,7 +182,14 @@ class MainActivity : AppCompatActivity() {
         tvChecks.text = sb.toString()
         if (!hasWarning) {
             tvChecks.append("\n🎉 Tüm sistem entegrasyonu doğrulandı!")
-            if (!isRunning) startBridge()
+            // Otomatik başlatmayı çökme riskine karşı kontrollü yapıyoruz
+            if (!isRunning) {
+                try {
+                    startBridge()
+                } catch (e: Exception) {
+                    tvChecks.append("\n❌ Servis başlatılamadı: ${e.message}")
+                }
+            }
         }
     }
 
@@ -189,9 +198,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startBridge() {
-        isRunning = true
-        tvStatus.text = "Durum: Köprü Aktif"
-        btnToggle.text = "Köprüyü Durdur"
         try {
             val serviceIntent = Intent(this, BridgeService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -199,8 +205,12 @@ class MainActivity : AppCompatActivity() {
             } else {
                 startService(serviceIntent)
             }
+            isRunning = true
+            tvStatus.text = "Durum: Köprü Aktif"
+            btnToggle.text = "Köprüyü Durdur"
         } catch (e: Exception) {
             e.printStackTrace()
+            Toast.makeText(this, "Servis başlatılırken hata oluştu!", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -208,6 +218,10 @@ class MainActivity : AppCompatActivity() {
         isRunning = false
         tvStatus.text = "Durum: Pasif"
         btnToggle.text = "Köprüyü Başlat"
-        stopService(Intent(this, BridgeService::class.java))
+        try {
+            stopService(Intent(this, BridgeService::class.java))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 }
