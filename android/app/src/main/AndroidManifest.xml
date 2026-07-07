@@ -71,37 +71,21 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="sms" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <action android:name="android.intent.action.SENDTO" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="smsto" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <action android:name="android.intent.action.SENDTO" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="mms" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <action android:name="android.intent.action.SENDTO" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="mmsto" />
             </intent-filter>
-<intent-filter>
-    <action android:name="android.intent.action.RESPOND_VIA_MESSAGE" />
-    <category android:name="android.intent.category.DEFAULT" />
-    <data android:scheme="sms" />
-    <data android:scheme="smsto" />
-    <data android:scheme="mms" />
-    <data android:scheme="mmsto" />
-</intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.RESPOND_VIA_MESSAGE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="sms" />
+                <data android:scheme="smsto" />
+                <data android:scheme="mms" />
+                <data android:scheme="mmsto" />
+            </intent-filter>
         </activity>
+
         <activity
             android:name=".IncomingCallActivity"
             android:exported="false"
@@ -123,6 +107,18 @@
             android:exported="false"
             android:foregroundServiceType="phoneCall" />
 
+        <!-- Hızlı mesaj gönderme servisi (Varsayılan SMS için zorunlu) -->
+        <service
+            android:name=".HeadlessSmsSendService"
+            android:permission="android.permission.SEND_RESPOND_VIA_MESSAGE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.RESPOND_VIA_MESSAGE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
+
+        <!-- Birleştirilmiş SMS Alıcısı -->
         <receiver
             android:name=".SmsReceiver"
             android:exported="true"
@@ -130,18 +126,15 @@
             <intent-filter android:priority="999">
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_DELIVER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.provider.Telephony.WAP_PUSH_DELIVER" />
+                <data android:mimeType="application/vnd.wap.mms-message" />
+            </intent-filter>
         </receiver>
-        <receiver
-    android:name=".SmsReceiver"
-    android:exported="true">
-    <intent-filter>
-        <action android:name="android.provider.Telephony.SMS_DELIVER" />
-    </intent-filter>
-    <intent-filter>
-        <action android:name="android.provider.Telephony.WAP_PUSH_DELIVER" />
-        <data android:mimeType="application/vnd.wap.mms-message" />
-    </intent-filter>
-</receiver>
+
         <receiver
             android:name=".BootReceiver"
             android:exported="true">
