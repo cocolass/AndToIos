@@ -8,15 +8,14 @@
     <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
     <uses-permission android:name="android.permission.READ_CALL_LOG" />
     <uses-permission android:name="android.permission.PROCESS_OUTGOING_CALLS" />
-    
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.SEND_SMS" />
-    
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -30,8 +29,8 @@
         android:label="AndToIos"
         android:theme="@style/Theme.AndToIos">
 
-        <activity 
-            android:name="com.andtoios.bridge.MainActivity" 
+        <activity
+            android:name="com.andtoios.bridge.MainActivity"
             android:exported="true"
             android:launchMode="singleTop">
             <intent-filter>
@@ -40,8 +39,9 @@
             </intent-filter>
         </activity>
 
-        <activity 
-            android:name="com.andtoios.bridge.DialerActivity" 
+        <!-- Varsayılan telefon uygulaması için -->
+        <activity
+            android:name="com.andtoios.bridge.DialerActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.CALL" />
@@ -66,36 +66,83 @@
             </intent-filter>
         </activity>
 
-        <receiver 
-            android:name="com.andtoios.bridge.SmsReceiver"
+        <!-- Varsayılan SMS uygulaması için -->
+        <activity
+            android:name="com.andtoios.bridge.SmsActivity"
             android:exported="true">
-            <intent-filter android:priority="999">
-                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
-            </intent-filter>
-        </receiver>
-
-        <service 
-            android:name="com.andtoios.bridge.CallInCallService" 
-            android:permission="android.permission.BIND_INCALL_SERVICE" 
-            android:exported="true">
-            <meta-data android:name="android.telecom.IN_CALL_SERVICE_UI" android:value="true" />
             <intent-filter>
-                <action android:name="android.telecom.InCallService" />
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SENDTO" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="sms" />
             </intent-filter>
-        </service>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SENDTO" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="smsto" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.RESPOND_VIA_MESSAGE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="sms" />
+                <data android:scheme="smsto" />
+                <data android:scheme="mms" />
+                <data android:scheme="mmsto" />
+            </intent-filter>
+        </activity>
 
-        <service 
-            android:name="com.andtoios.bridge.GsmConnectionService" 
-            android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE" 
+        <activity
+            android:name="com.andtoios.bridge.IncomingCallActivity"
+            android:exported="false"
+            android:showOnLockScreen="true"
+            android:turnScreenOn="true"
+            android:launchMode="singleTask" />
+
+        <service
+            android:name="com.andtoios.bridge.GsmConnectionService"
+            android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.telecom.ConnectionService" />
             </intent-filter>
         </service>
 
-        <activity android:name="com.andtoios.bridge.IncomingCallActivity" android:exported="false" android:showOnLockScreen="true" android:turnScreenOn="true" android:launchMode="singleTask" />
-        <service android:name="com.andtoios.bridge.BridgeService" android:exported="false" android:foregroundServiceType="phoneCall" />
-        <receiver android:name="com.andtoios.bridge.BootReceiver" android:exported="true"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter></receiver>
+        <service
+            android:name="com.andtoios.bridge.BridgeService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall" />
+
+        <receiver
+            android:name="com.andtoios.bridge.SmsReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="999">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="com.andtoios.bridge.SmsReceiver"
+            android:exported="true">
+            <intent-filter android:priority="999">
+                <action android:name="android.provider.Telephony.SMS_DELIVER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.provider.Telephony.WAP_PUSH_DELIVER" />
+                <data android:mimeType="application/vnd.wap.mms-message" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="com.andtoios.bridge.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
     </application>
 </manifest>
