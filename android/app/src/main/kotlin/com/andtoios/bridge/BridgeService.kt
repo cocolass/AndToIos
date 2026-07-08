@@ -3,8 +3,6 @@ package com.andtoios.bridge
 import android.app.*
 import android.content.Context
 import android.content.Intent
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -52,10 +50,14 @@ class BridgeService : Service() {
     }
 
     private fun handleMessage(type: String, data: JsonObject) {
+        Log.i(TAG, "Mesaj işleniyor: $type")
         when (type) {
             "webrtc_answer" -> webRtcManager.handleAnswer(data)
             "webrtc_ice"    -> webRtcManager.handleIceCandidate(data)
-            "call_answer"   -> GsmConnectionService.answerActiveCall()
+            "call_answer"   -> {
+                Log.i(TAG, "iPhone aramayı cevapladı")
+                GsmConnectionService.answerActiveCall()
+            }
             "call_reject"   -> GsmConnectionService.rejectActiveCall()
             "call_end"      -> GsmConnectionService.endActiveCall()
             "call_outgoing" -> {
@@ -72,7 +74,9 @@ class BridgeService : Service() {
     }
 
     fun notifyIncomingCall(caller: String) {
+        Log.i(TAG, "notifyIncomingCall çağrıldı: $caller, iPhone bağlı mı: ${server.isIPhoneConnected()}")
         webRtcManager.createOffer { offer ->
+            Log.i(TAG, "WebRTC offer oluşturuldu, iPhone'a gönderiliyor")
             server.send("call_incoming", JsonObject().apply {
                 addProperty("caller", caller)
                 addProperty("sdp", offer)
@@ -91,29 +95,39 @@ class BridgeService : Service() {
     }
 
     fun getLocalIp(): String {
-        // Önce tüm network interface'leri tara
         try {
             val interfaces = NetworkInterface.getNetworkInterfaces()
+            val candidates = mutableListOf<Pair<String, String>>()
+
             while (interfaces.hasMoreElements()) {
                 val iface = interfaces.nextElement()
-                // Hotspot interface'leri: wlan0, ap0, swlan0 gibi
                 val name = iface.name.lowercase()
                 if (!iface.isUp || iface.isLoopback) continue
-                
+
                 val addresses = iface.inetAddresses
                 while (addresses.hasMoreElements()) {
                     val addr = addresses.nextElement()
                     val ip = addr.hostAddress ?: continue
-                    // IPv4 ve loopback olmayan
                     if (!addr.isLoopbackAddress && !ip.contains(":")) {
-                        Log.i(TAG, "Interface: $name, IP: $ip")
-                        // Hotspot IP'si genellikle 192.168.x.x veya 10.x.x.x
-                        if (ip.startsWith("192.168.") || ip.startsWith("10.")) {
-                            return ip
-                        }
+                        Log.i(TAG, "Interface bulundu: $name -> $ip")
+                        candidates.add(name to ip)
                     }
                 }
             }
+
+            // Öncelik: wlan, ap, softap gibi hotspot interface isimleri
+            val hotspotIface = candidates.firstOrNull {
+                it.first.contains("wlan") || it.first.contains("ap") || it.first.contains("softap")
+            }
+            if (hotspotIface != null) return hotspotIface.second
+
+            // Mobil veri interface'lerini (rmnet, seth_lte, ccmni) hariç tut
+            val nonMobile = candidates.firstOrNull {
+                !it.first.contains("rmnet") && !it.first.contains("lte") && !it.first.contains("ccmni")
+            }
+            if (nonMobile != null) return nonMobile.second
+
+            return candidates.firstOrNull()?.second ?: "IP alınamadı"
         } catch (e: Exception) {
             Log.e(TAG, "IP alma hatası: ${e.message}")
         }
