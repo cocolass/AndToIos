@@ -7,46 +7,40 @@ import android.os.Bundle
 import android.telecom.*
 import android.util.Log
 
+// Not: Gelen aramalar artık CallInCallService üzerinden yakalanıyor.
+// Bu sınıf sadece giden arama başlatmak için kullanılıyor.
 class GsmConnectionService : ConnectionService() {
 
     companion object {
         const val TAG = "GsmConnectionService"
-        private var activeConnection: GsmConnection? = null
 
         fun makeOutgoingCall(context: Context, number: String) {
             val tm = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
             tm.placeCall(Uri.fromParts("tel", number, null), Bundle())
         }
 
-        fun answerActiveCall() { activeConnection?.setActive() }
-        fun rejectActiveCall() { activeConnection?.onReject() }
-        fun endActiveCall()    { activeConnection?.onDisconnect() }
-    }
+        fun answerActiveCall() {
+            CallInCallService.activeCall?.answer(0)
+                ?: Log.w(TAG, "Aktif çağrı yok, cevaplanamadı")
+        }
 
-    override fun onCreateIncomingConnection(
-        mgr: PhoneAccountHandle?, request: ConnectionRequest
-    ): Connection {
-        val number = request.address?.schemeSpecificPart ?: "Bilinmiyor"
-        Log.i(TAG, "Gelen GSM: $number")
+        fun rejectActiveCall() {
+            CallInCallService.activeCall?.reject(false, null)
+                ?: Log.w(TAG, "Aktif çağrı yok, reddedilemedi")
+        }
 
-        val conn = GsmConnection(number)
-        activeConnection = conn
-        conn.setAddress(request.address, TelecomManager.PRESENTATION_ALLOWED)
-        conn.setCallerDisplayName(number, TelecomManager.PRESENTATION_ALLOWED)
-        conn.connectionCapabilities = Connection.CAPABILITY_MUTE or Connection.CAPABILITY_SUPPORT_HOLD
-
-        // iPhone'a bildir
-        BridgeService.instance?.notifyIncomingCall(number)
-
-        return conn
+        fun endActiveCall() {
+            CallInCallService.activeCall?.disconnect()
+                ?: Log.w(TAG, "Aktif çağrı yok, kapatılamadı")
+        }
     }
 
     override fun onCreateOutgoingConnection(
         mgr: PhoneAccountHandle?, request: ConnectionRequest
     ): Connection {
         val number = request.address?.schemeSpecificPart ?: ""
+        Log.i(TAG, "Giden GSM çağrısı: $number")
         val conn = GsmConnection(number)
-        activeConnection = conn
         conn.setAddress(request.address, TelecomManager.PRESENTATION_ALLOWED)
         conn.setDialing()
         return conn
@@ -57,25 +51,12 @@ class GsmConnectionService : ConnectionService() {
 
         override fun onAnswer() {
             super.onAnswer(); setActive()
-            Log.i(TAG, "Cevaplandı: $number")
-        }
-
-        override fun onReject() {
-            super.onReject()
-            setDisconnected(DisconnectCause(DisconnectCause.REJECTED))
-            destroy(); activeConnection = null
-            BridgeService.instance?.server?.send("call_ended", com.google.gson.JsonObject())
         }
 
         override fun onDisconnect() {
             super.onDisconnect()
             setDisconnected(DisconnectCause(DisconnectCause.LOCAL))
-            destroy(); activeConnection = null
-            BridgeService.instance?.server?.send("call_ended", com.google.gson.JsonObject())
-            BridgeService.instance?.updateNotification("Hazır")
+            destroy()
         }
-
-        override fun onHold()   { super.onHold();   setOnHold() }
-        override fun onUnhold() { super.onUnhold(); setActive() }
     }
 }
