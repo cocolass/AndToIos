@@ -1,3 +1,5 @@
+package com.andtoios.bridge
+
 import android.content.Intent
 import android.net.VpnService
 import android.os.ParcelFileDescriptor
